@@ -36,7 +36,7 @@ This Python script gathers replacement request data from Freshservice for the la
 
 2.  Follow the prompts to enter the Freshservice base URL, API key, and the number of days of data you would like to export. You will also be asked if you'd like to enable AI-powered description rephrasing.
 
-    If AI rephrasing is enabled, the script will revise the original descriptions using the chosen Llama model (either 8b or 70b).
+    If AI rephrasing is enabled, the script will revise the original descriptions using the chosen Llama model.
 
 3.  Open the generated CSV file (`output_data_<timestamp>.csv`) to view the data.
 
