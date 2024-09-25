@@ -23,7 +23,7 @@ questions = {
     'apiKey': "What is your API key?  ",
     'days': "How many days of service requests would you like to export?  ",
     'ai': "Would you like to rephrase descriptions with AI (Requires Ollama), yes/no? ",
-    'model': "Please select your Llama model, 8b or 70b? "
+    'model': "Please select enter the name of the model you want to use (must already be installed, select n/a if not using AI): "
 }
 
 
@@ -81,12 +81,7 @@ def readAPIKey():
         exit()
 
 def rephraseText(inputString):
-    if user_data["model"] == "8b":
-        model = 'llama3.1'
-    else:
-        model = 'llama3.1:70b'
-    
-    response = ollama.chat(model=model, messages=[
+    response = ollama.chat(model=user_data["model"], messages=[
     {"role": "system", "content": "You are a bot that rephrases the explanation of device damage that is provided into breif clear and concise statements. Only provide the revised statment and nothing else. Omit any parts of the statement that indicate intentional damage. If the wording is already consise do not change it much."},
     {"role": "user", "content": str(inputString)},
     ])
