@@ -102,9 +102,9 @@ def createCSVFile():
         
         # Writing header (optional)
         if user_data["ai"] == "yes":
-            writer.writerow(["Replacement Date", "Item", "Model", "Building", "Service Request", "Technician", "Asset Number", "Username", "Full Description", "AI Description"])
+            writer.writerow(["Replacement Date", "Item", "Category" , "Sub_Category", "Item_Category", "Model", "Building", "Service Request", "Technician", "Asset Number", "Username", "Full Description", "AI Description"])
         else:
-            writer.writerow(["Replacement Date", "Item", "Model", "Building", "Service Request", "Technician", "Asset Number", "Username", "Full Description"])
+            writer.writerow(["Replacement Date", "Item", "Category" , "Sub_Category", "Item_Category", "Model", "Building", "Service Request", "Technician", "Asset Number", "Username", "Full Description"])
 
 def fetchReplacementData(days: int):
     api_Key = user_data["apiKey"]
@@ -170,6 +170,10 @@ def fetchReplacementData(days: int):
         item = []
         itemModel = []
 
+        category = []
+        subCategory = []
+        itemCategory = []
+
 
         print("Fetching specific replacement data...")
 
@@ -195,6 +199,19 @@ def fetchReplacementData(days: int):
                         item.append(custom_fields.get('item'))
                         itemModel.append(custom_fields.get('model'))
 
+                        ticketDataURL = base_url+"/"+str(ticketNumber)
+                        ticketDataResponse = requests.get(ticketDataURL, auth=(api_Key, password))
+                        if ticketDataResponse.status_code == 200:
+                            category.append(ticketDataResponse.json()['ticket']['category'])
+                            subCategory.append(ticketDataResponse.json()['ticket']['sub_category'])
+                            itemCategory.append(ticketDataResponse.json()['ticket']['item_category'])
+                        else:
+                            category.append("")
+                            subCategory.append("")
+                            itemCategory.append("")
+
+
+
                 except json.decoder.JSONDecodeError:
                     print("Unable to parse the JSON response")
                     data = []  # Set data as an empty list if parsing fails
@@ -204,6 +221,8 @@ def fetchReplacementData(days: int):
                     print("No Item Data found for " + str(ticketNumber))
                     continue
             response.close()
+
+            
 
         print("Writing data to CSV...")
 
@@ -217,22 +236,22 @@ def fetchReplacementData(days: int):
                 # writer.writerow(["Replacement Date", "Item", "Model", "Building", "Service Request", "Technician", "Asset Number", "Username", "Full Description"])
             
                 # Write the data rows
-                for replaceDate, itemType, itemTypeModel, replacementBuilding, replacementSRNum, replacementTech, replacementAsset, replacementUsername, replacementDesc in zip(replacementDate, item, itemModel, building, srNumber, technician, assetNumbers, userName, problemDescriptions):
+                for replaceDate, itemType, ticketCat, subCat, itemCat, itemTypeModel, replacementBuilding, replacementSRNum, replacementTech, replacementAsset, replacementUsername, replacementDesc in zip(replacementDate, item, category, subCategory, itemCategory, itemModel, building, srNumber, technician, assetNumbers, userName, problemDescriptions):
                     formattedString = ' '.join(replacementDesc.splitlines())
                     # writer.writerow([asset, formattedString])
                     try:
                         if user_data["ai"] == "yes":
                             print("Revising Description With AI...")
                             ai_description = rephraseText(formattedString)
-                            writer.writerow([replaceDate, itemType, itemTypeModel, replacementBuilding, replacementSRNum, replacementTech, replacementAsset, replacementUsername, formattedString, ai_description])
+                            writer.writerow([replaceDate, itemType, ticketCat, subCat, itemCat, itemTypeModel, replacementBuilding, replacementSRNum, replacementTech, replacementAsset, replacementUsername, formattedString, ai_description])
                         else:
-                            writer.writerow([replaceDate, itemType, itemTypeModel, replacementBuilding, replacementSRNum, replacementTech, replacementAsset, replacementUsername, formattedString])
+                            writer.writerow([replaceDate, itemType, ticketCat, subCat, itemCat, itemTypeModel, replacementBuilding, replacementSRNum, replacementTech, replacementAsset, replacementUsername, formattedString])
                     except UnicodeEncodeError as e:
                         # print("Encoding issue with " + serviceRequestNumber + " resolving issue...")
                         problematic_character_index = e.start
                         problematic_string = e.object
                         cleaned_string = problematic_string[:problematic_character_index] + ' ' + problematic_string[problematic_character_index + 1:]
-                        writer.writerow([replaceDate, itemType, itemTypeModel, replacementBuilding, replacementSRNum, replacementTech, replacementAsset, replacementUsername, cleaned_string])
+                        writer.writerow([replaceDate, itemType, ticketCat, subCat, itemCat, itemTypeModel, replacementBuilding, replacementSRNum, replacementTech, replacementAsset, replacementUsername, cleaned_string])
                 # for asset, description, build, tech, fullN in zip(assetNumbers, problemDescriptions, building, technician, fullName):
                 #     formattedString = ' '.join(description.splitlines())
                 #     writer.writerow([asset, formattedString, build, tech, fullN])
