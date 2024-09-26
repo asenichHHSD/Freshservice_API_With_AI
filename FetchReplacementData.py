@@ -4,8 +4,12 @@ import json
 import csv
 import random
 import time
-import ollama
 import os
+
+try:
+    import ollama
+except ImportError:
+    print("Ollama library not found, AI features will be disabled...")
 
 
 # Define the file where the data will be stored
@@ -81,8 +85,10 @@ def readAPIKey():
         exit()
 
 def rephraseText(inputString):
+    systemRole = "You are a bot that rephrases the explanation of device damage that is provided into breif clear and concise statements. Only provide the revised statment and nothing else. Omit any parts of the statement that indicate intentional damage. If the wording is already consise do not change it much."
+    
     response = ollama.chat(model=user_data["model"], messages=[
-    {"role": "system", "content": "You are a bot that rephrases the explanation of device damage that is provided into breif clear and concise statements. Only provide the revised statment and nothing else. Omit any parts of the statement that indicate intentional damage. If the wording is already consise do not change it much."},
+    {"role": "system", "content": systemRole},
     {"role": "user", "content": str(inputString)},
     ])
     print("-----------------------------")
