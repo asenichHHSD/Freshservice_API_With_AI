@@ -94,3 +94,6 @@ The output file, `output_data_<timestamp>.csv`, will contain the following field
 
 -   AI rephrasing requires an active Ollama setup, and you will be prompted to select a Llama model during runtime.
 -   CSV file output is created in the script directory and is time-stamped for reference.
+
+------------------
+![alt text](llama.png)
