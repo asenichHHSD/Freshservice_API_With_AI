@@ -1,5 +1,9 @@
 # HHSD Freshservice Python Script
 ---------------------------------
+## Note
+
+This script was developed specifically for use by HHSD. Please feel free to modify and utilize this code however you see fit.
+---------------------------------
 
 This Python script gathers replacement request data from Freshservice for the last specified number of days and exports it to a CSV file. Additionally, it can use AI to rephrase the descriptions of the replacement requests, making them more concise and clear. The AI rephrasing feature uses the Ollama API and supports multiple Llama models.
 
