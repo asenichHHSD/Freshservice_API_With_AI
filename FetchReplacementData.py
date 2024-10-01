@@ -112,6 +112,9 @@ def createCSVFile():
         else:
             writer.writerow(["Replacement Date", "Item", "Category" , "Sub_Category", "Item_Category", "Model", "Building", "Service Request", "Technician", "Asset Number", "Username", "Full Description"])
 
+def randomSleep(maxSleep):
+    time.sleep(random.uniform(0.1,maxSleep))
+
 def fetchReplacementData(days: int):
     api_Key = user_data["apiKey"]
     # Calculate the date 30 days ago
@@ -184,6 +187,7 @@ def fetchReplacementData(days: int):
         print("Fetching specific replacement data...")
 
         for ticketNumber in service_request_ids:
+            randomSleep(1.1)
             print(str(service_request_ids.index(ticketNumber)+1) + "/" + str(len(service_request_ids)))
             itemsURL = base_url+"/"+str(ticketNumber)+"/requested_items"
             # print(itemsURL)
@@ -216,6 +220,8 @@ def fetchReplacementData(days: int):
                             subCategory.append("")
                             itemCategory.append("")
 
+            
+
 
 
                 except json.decoder.JSONDecodeError:
@@ -226,6 +232,9 @@ def fetchReplacementData(days: int):
                 except IndexError:
                     print("No Item Data found for " + str(ticketNumber))
                     continue
+
+            else:
+                print("Error: " + str(response.status_code))
             response.close()
 
             
