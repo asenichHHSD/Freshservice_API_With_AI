@@ -112,8 +112,8 @@ def createCSVFile():
         else:
             writer.writerow(["Replacement Date", "Item", "Category" , "Sub_Category", "Item_Category", "Model", "Building", "Service Request", "Technician", "Asset Number", "Username", "Full Description"])
 
-def randomSleep(maxSleep):
-    time.sleep(random.uniform(0.1,maxSleep))
+def randomSleep():
+    time.sleep(random.uniform(0.1,0.6))
 
 def fetchReplacementData(days: int):
     api_Key = user_data["apiKey"]
@@ -147,18 +147,23 @@ def fetchReplacementData(days: int):
         # Send the GET request with basic authentication
 
         response = requests.get(base_url, params=params, auth=(api_Key, password))
-        # print
-        
+        reRunPageFetch = True
 
-        if response.status_code == 200:
-            try:
-                data = response.json()['tickets']  # Try to parse the JSON response
-                # print(data)
-            except json.decoder.JSONDecodeError:
-                print("Unable to parse the JSON response")
-                data = []  # Set data as an empty list if parsing fails
-                input("Press Enter to exit....")
-                exit()
+
+        while reRunPageFetch:
+            if response.status_code == 200:
+                reRunPageFetch = False
+                try:
+                    data = response.json()['tickets']  # Try to parse the JSON response
+                    # print(data)
+                except json.decoder.JSONDecodeError:
+                    print("Unable to parse the JSON response")
+                    data = []  # Set data as an empty list if parsing fails
+                    input("Press Enter to exit....")
+                    exit()
+            else:
+                print("Waiting for API cooldown")
+                time.sleep(30)
 
         print("Fetching Data from Freshservice page: "+  str(page))
         for ticket in data:
@@ -187,55 +192,61 @@ def fetchReplacementData(days: int):
         print("Fetching specific replacement data...")
 
         for ticketNumber in service_request_ids:
-            randomSleep(1.1)
+            randomSleep()
             print(str(service_request_ids.index(ticketNumber)+1) + "/" + str(len(service_request_ids)))
             itemsURL = base_url+"/"+str(ticketNumber)+"/requested_items"
             # print(itemsURL)
-            response = requests.get(itemsURL, auth=(api_Key, password))
-            if response.status_code == 200:
-                try:
-                    data = response.json()['requested_items'][0]  # Try to parse the JSON response
-                    # print(data)
-                    if data.get('service_item_id') == 47:
-                        custom_fields = data.get('custom_fields', {})
-                        assetNumbers.append(custom_fields.get('asset'))
-                        problemDescriptions.append(custom_fields.get('full_issue_description'))
-                        building.append(custom_fields.get('building'))
-                        userName.append(custom_fields.get('student_username'))
-                        technician.append(custom_fields.get('technician_initials'))
-                        srNumber.append(str(ticketNumber))
-                        replacementDate.append(data.get('created_at'))
-                        # print(replacementDate)
-                        item.append(custom_fields.get('item'))
-                        itemModel.append(custom_fields.get('model'))
+            reRunSrFetch = True
 
-                        ticketDataURL = base_url+"/"+str(ticketNumber)
-                        ticketDataResponse = requests.get(ticketDataURL, auth=(api_Key, password))
-                        if ticketDataResponse.status_code == 200:
-                            category.append(ticketDataResponse.json()['ticket']['category'])
-                            subCategory.append(ticketDataResponse.json()['ticket']['sub_category'])
-                            itemCategory.append(ticketDataResponse.json()['ticket']['item_category'])
-                        else:
-                            category.append("")
-                            subCategory.append("")
-                            itemCategory.append("")
+            while reRunSrFetch:
+                response = requests.get(itemsURL, auth=(api_Key, password))
+                if response.status_code == 200:
+                    reRunSrFetch = False
+                    try:
+                        data = response.json()['requested_items'][0]  # Try to parse the JSON response
+                        # print(data)
+                        if data.get('service_item_id') == 47:
+                            custom_fields = data.get('custom_fields', {})
+                            assetNumbers.append(custom_fields.get('asset'))
+                            problemDescriptions.append(custom_fields.get('full_issue_description'))
+                            building.append(custom_fields.get('building'))
+                            userName.append(custom_fields.get('student_username'))
+                            technician.append(custom_fields.get('technician_initials'))
+                            srNumber.append(str(ticketNumber))
+                            replacementDate.append(data.get('created_at'))
+                            # print(replacementDate)
+                            item.append(custom_fields.get('item'))
+                            itemModel.append(custom_fields.get('model'))
 
-            
+                            ticketDataURL = base_url+"/"+str(ticketNumber)
+                            ticketDataResponse = requests.get(ticketDataURL, auth=(api_Key, password))
+                            if ticketDataResponse.status_code == 200:
+                                category.append(ticketDataResponse.json()['ticket']['category'])
+                                subCategory.append(ticketDataResponse.json()['ticket']['sub_category'])
+                                itemCategory.append(ticketDataResponse.json()['ticket']['item_category'])
+                            else:
+                                category.append("")
+                                subCategory.append("")
+                                itemCategory.append("")
+
+                
 
 
 
-                except json.decoder.JSONDecodeError:
-                    print("Unable to parse the JSON response")
-                    data = []  # Set data as an empty list if parsing fails
-                    input("Press Enter to exit....")
-                    exit()
-                except IndexError:
-                    print("No Item Data found for " + str(ticketNumber))
-                    continue
+                    except json.decoder.JSONDecodeError:
+                        print("Unable to parse the JSON response")
+                        data = []  # Set data as an empty list if parsing fails
+                        input("Press Enter to exit....")
+                        exit()
+                    except IndexError:
+                        print("No Item Data found for " + str(ticketNumber))
+                        continue
 
-            else:
-                print("Error: " + str(response.status_code))
-            response.close()
+                else:
+                    print("Error: " + str(response.status_code))
+                    print("Waiting for API cooldown")
+                    time.sleep(30)
+                response.close()
 
             
 
