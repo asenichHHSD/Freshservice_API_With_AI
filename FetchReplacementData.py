@@ -5,6 +5,7 @@ import csv
 import random
 import time
 import os
+from tqdm import tqdm
 
 try:
     import ollama
@@ -27,7 +28,8 @@ questions = {
     'apiKey': "What is your API key?  ",
     'days': "How many days of service requests would you like to export?  ",
     'ai': "Would you like to rephrase descriptions with AI (Requires Ollama), yes/no? ",
-    'model': "Please select enter the name of the model you want to use (must already be installed, select n/a if not using AI): "
+    'model': "Please select enter the name of the model you want to use (must already be installed, select n/a if not using AI): ",
+    'debug' : "Enable debugging, yes/no: "
 }
 
 
@@ -58,6 +60,17 @@ current_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
 # Define the filename with the current time appended
 csvFilename = f'output_data_{current_time}.csv'
+
+def logging(*args):
+    if user_data['debug'] == 'yes':
+        message = ' '.join(str(arg) for arg in args)
+        print(message)
+
+def coolDown(cooldownTime):
+
+    # Create a progress bar that spans `total_duration` seconds
+    for i in tqdm(range(cooldownTime), desc='Waiting for API Cooldown', unit='s', bar_format='{l_bar}{bar}| {remaining}', colour="red", leave=False):
+        time.sleep(1)  # Sleep for 1 second (adjust this for finer progress)
 
 
 def readAPIKey():
@@ -91,13 +104,13 @@ def rephraseText(inputString):
     {"role": "system", "content": systemRole},
     {"role": "user", "content": str(inputString)},
     ])
-    print("-----------------------------")
-    print("Original Description: ")
-    print(inputString)
-    print("")
-    print("AI Description: ")
-    print(response['message']['content'])
-    print("-----------------------------")
+    logging("-----------------------------")
+    logging("Original Description: ")
+    logging(inputString)
+    logging("")
+    logging("AI Description: ")
+    logging(response['message']['content'])
+    logging("-----------------------------")
     return response['message']['content']
 
 def createCSVFile():
@@ -125,7 +138,7 @@ def fetchReplacementData(days: int):
     end_date_str = end_date.strftime("%Y-%m-%dT%H:%M:%S")
     start_date_str = start_date.strftime("%Y-%m-%dT%H:%M:%S")
 
-    print("Exporting data from past " + str(days) + " days")
+    logging("Exporting data from past " + str(days) + " days")
 
     pageList = []
 
@@ -135,7 +148,9 @@ def fetchReplacementData(days: int):
     pageList.remove(0)
     # print(pageList)
 
-    for page in pageList:
+    os.system('cls' if os.name == 'nt' else 'clear')
+    for page in tqdm(pageList, desc="Processing Ticket Pages", unit="Page"):
+        randomSleep()
         service_request_ids = []
         # Define the parameters for the API request
         params = {
@@ -162,17 +177,23 @@ def fetchReplacementData(days: int):
                     input("Press Enter to exit....")
                     exit()
             else:
-                print("Waiting for API cooldown")
-                time.sleep(30)
+                # response.close()
+                logging("Waiting for API cooldown")
+                # time.sleep(30)
+                coolDown(60)
 
-        print("Fetching Data from Freshservice page: "+  str(page))
+        logging("Fetching Data from Freshservice page: "+  str(page))
         for ticket in data:
                 if isinstance(ticket, dict) and ticket.get("type") == "Service Request":
                     service_request_ids.append(ticket["id"])
 
+        if service_request_ids == []:
+            logging("No valid SRs on current page...")
+            continue
+
         response.close()
         
-        print("Service Request IDs:", service_request_ids)
+        logging("Service Request IDs:", service_request_ids)
 
         assetNumbers = []
         problemDescriptions = []
@@ -189,11 +210,11 @@ def fetchReplacementData(days: int):
         itemCategory = []
 
 
-        print("Fetching specific replacement data...")
+        # print("Fetching specific replacement data...")
 
-        for ticketNumber in service_request_ids:
+        for ticketNumber in tqdm(service_request_ids, desc="Fetching SR Data", unit="Service Request", leave=False, colour="blue"):
             randomSleep()
-            print(str(service_request_ids.index(ticketNumber)+1) + "/" + str(len(service_request_ids)))
+            logging(str(service_request_ids.index(ticketNumber)+1) + "/" + str(len(service_request_ids)))
             itemsURL = base_url+"/"+str(ticketNumber)+"/requested_items"
             # print(itemsURL)
             reRunSrFetch = True
@@ -239,21 +260,23 @@ def fetchReplacementData(days: int):
                         input("Press Enter to exit....")
                         exit()
                     except IndexError:
-                        print("No Item Data found for " + str(ticketNumber))
+                        logging("No Item Data found for " + str(ticketNumber))
                         continue
 
                 else:
-                    print("Error: " + str(response.status_code))
-                    print("Waiting for API cooldown")
-                    time.sleep(30)
+                    # response.close()
+                    logging("Error: " + str(response.status_code))
+                    logging("Waiting for API cooldown")
+                    # time.sleep(30)
+                    coolDown(60)
                 response.close()
 
             
 
-        print("Writing data to CSV...")
+        logging("Writing data to CSV...")
 
         # Create a CSV file and write the data
-        print(csvFilename)
+        logging(csvFilename)
         try:
             with open(csvFilename, mode='a', newline='') as csv_file:
                 writer = csv.writer(csv_file)
@@ -267,7 +290,7 @@ def fetchReplacementData(days: int):
                     # writer.writerow([asset, formattedString])
                     try:
                         if user_data["ai"] == "yes":
-                            print("Revising Description With AI...")
+                            logging("Revising Description With AI...")
                             ai_description = rephraseText(formattedString)
                             writer.writerow([replaceDate, itemType, ticketCat, subCat, itemCat, itemTypeModel, replacementBuilding, replacementSRNum, replacementTech, replacementAsset, replacementUsername, formattedString, ai_description])
                         else:
@@ -295,3 +318,5 @@ def fetchReplacementData(days: int):
 # api_key = readAPIKeyFromFile()
 createCSVFile()
 fetchReplacementData(int(user_data["days"]))
+print("Output file generated: " + str(csvFilename))
+input("Press Enter to exit....")
