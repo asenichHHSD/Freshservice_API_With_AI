@@ -285,7 +285,7 @@ def fetchReplacementData(days: int):
                 # writer.writerow(["Replacement Date", "Item", "Model", "Building", "Service Request", "Technician", "Asset Number", "Username", "Full Description"])
             
                 # Write the data rows
-                for replaceDate, itemType, ticketCat, subCat, itemCat, itemTypeModel, replacementBuilding, replacementSRNum, replacementTech, replacementAsset, replacementUsername, replacementDesc in zip(replacementDate, item, category, subCategory, itemCategory, itemModel, building, srNumber, technician, assetNumbers, userName, problemDescriptions):
+                for replaceDate, itemType, ticketCat, subCat, itemCat, itemTypeModel, replacementBuilding, replacementSRNum, replacementTech, replacementAsset, replacementUsername, replacementDesc in tqdm(zip(replacementDate, item, category, subCategory, itemCategory, itemModel, building, srNumber, technician, assetNumbers, userName, problemDescriptions),desc="Writing Data to CSV", unit="Row", colour="yellow", leave=False, total=len(srNumber)):
                     formattedString = ' '.join(replacementDesc.splitlines())
                     # writer.writerow([asset, formattedString])
                     try:
