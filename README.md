@@ -28,7 +28,7 @@ This Python script gathers replacement request data from Freshservice for the la
 1.  Install Python 3.8 or above.
 2.  Install required packages:
 
-`pip install requests ollama`
+`pip install requests ollama tqdm`
 
 
 ## Running the Script
