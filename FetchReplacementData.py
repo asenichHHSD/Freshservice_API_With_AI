@@ -6,11 +6,17 @@ import random
 import time
 import os
 from tqdm import tqdm
+import subprocess
+import atexit
+import signal
+import sys
 
 try:
     import ollama
+    ollamaEnabled = True
 except ImportError:
     print("Ollama library not found, AI features will be disabled...")
+    ollamaEnabled = False
 
 
 # Define the file where the data will be stored
@@ -60,6 +66,59 @@ current_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
 # Define the filename with the current time appended
 csvFilename = f'output_data_{current_time}.csv'
+
+# Define Ollama process
+global ollamaProcess
+
+def checkOllama():
+    # Check if the OS is Windows using os.name
+    is_windows = os.name == "nt"
+    
+    # Check if the ollama.exe file is in the current working directory
+    ollama_exists = os.path.isfile(os.path.join(os.getcwd(), "ollama.exe"))
+    
+    # Check all conditions
+    if (user_data.get("ai") == "yes" and
+        ollamaEnabled == True and
+        is_windows and
+        ollama_exists):
+        return True
+    else:
+        return False
+
+def terminate_exe():
+    """Ensure the .exe process is killed when the script exits."""
+    if ollamaProcess.poll() is None:  # Check if the process is still running
+        print("Terminating the exe file...")
+        ollamaProcess.terminate()  # Send termination signal
+        ollamaProcess.wait()  # Wait for it to fully terminate
+        print("Exe terminated.")
+
+        
+def startOllama():
+    # Get the current working directory
+    current_dir = os.getcwd()
+
+    # Set the environment variable OLLAMA_MODELS
+    os.environ['OLLAMA_MODELS'] = os.path.join(current_dir, 'models')
+    print(os.environ['OLLAMA_MODELS'])
+
+# Now proceed with the rest of your code
+    ollamaProcess = subprocess.Popen(['ollama.exe', 'serve'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # Register the termination function to be called on normal exit
+    atexit.register(terminate_exe)
+    # Register signal handlers to ensure termination on script interruption
+    signal.signal(signal.SIGINT, signal_handler)  # Handles Ctrl+C
+    signal.signal(signal.SIGTERM, signal_handler)  # Handles termination signals
+    for i in tqdm(range(30), desc='Starting the Llama', unit='s', bar_format='{l_bar}{bar}| {remaining}', colour="green", leave=False):
+        time.sleep(1)  # Sleep for 1 second (adjust this for finer progress)
+
+
+def signal_handler(sig, frame):
+    """Handle signals like SIGINT (Ctrl+C) and ensure cleanup."""
+    print("Script interrupted, exiting...")
+    terminate_exe()  # Clean up and terminate the exe
+    sys.exit(0)
 
 def logging(*args):
     if user_data['debug'] == 'yes':
@@ -316,7 +375,16 @@ def fetchReplacementData(days: int):
 
 
 # api_key = readAPIKeyFromFile()
+
+# Try to start ollama
+if checkOllama:
+    logging("Local Llama is available")
+    startOllama()
+    
+
 createCSVFile()
 fetchReplacementData(int(user_data["days"]))
+if checkOllama:
+    terminate_exe()
 print("Output file generated: " + str(csvFilename))
 input("Press Enter to exit....")
