@@ -78,7 +78,7 @@ def checkOllama():
     ollama_exists = os.path.isfile(os.path.join(os.getcwd(), "ollama.exe"))
     
     # Check all conditions
-    if (user_data.get("ai") == "yes" and
+    if (user_data["ai"] == "yes" and
         ollamaEnabled == True and
         is_windows and
         ollama_exists):
@@ -94,7 +94,7 @@ def terminate_exe():
         ollamaProcess.wait()  # Wait for it to fully terminate
         print("Exe terminated.")
 
-        
+
 def startOllama():
     # Get the current working directory
     current_dir = os.getcwd()
@@ -103,7 +103,7 @@ def startOllama():
     os.environ['OLLAMA_MODELS'] = os.path.join(current_dir, 'models')
     print(os.environ['OLLAMA_MODELS'])
 
-# Now proceed with the rest of your code
+    # Now proceed with the rest of your code
     ollamaProcess = subprocess.Popen(['ollama.exe', 'serve'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     # Register the termination function to be called on normal exit
     atexit.register(terminate_exe)
@@ -377,14 +377,14 @@ def fetchReplacementData(days: int):
 # api_key = readAPIKeyFromFile()
 
 # Try to start ollama
-if checkOllama:
+if checkOllama():
     logging("Local Llama is available")
     startOllama()
     
 
 createCSVFile()
 fetchReplacementData(int(user_data["days"]))
-if checkOllama:
+if checkOllama():
     terminate_exe()
 print("Output file generated: " + str(csvFilename))
 input("Press Enter to exit....")
