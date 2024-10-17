@@ -32,6 +32,7 @@ else:
 questions = {
     'freshserviceBaseURL': "Freshservice base URL Ex. https://xxx.freshservice.com/? ",
     'apiKey': "What is your API key?  ",
+    'lenovoKey': "Please enter your Lenovo API key: ",
     'days': "How many days of service requests would you like to export?  ",
     'ai': "Would you like to rephrase descriptions with AI (Requires Ollama), yes/no? ",
     'model': "Please select enter the name of the model you want to use (must already be installed, select n/a if not using AI): ",
@@ -180,12 +181,96 @@ def createCSVFile():
         
         # Writing header (optional)
         if user_data["ai"] == "yes":
-            writer.writerow(["Replacement Date", "Item", "Category" , "Sub_Category", "Item_Category", "Model", "Building", "Service Request", "Technician", "Asset Number", "Username", "Full Description", "AI Description"])
+            writer.writerow(["Replacement Date", "Item", "Category" , "Sub_Category", "Item_Category", "Model", "Building", "Service Request", "Technician", "Asset Number", "Serial", "Warranty Status","Username", "Full Description", "AI Description"])
         else:
-            writer.writerow(["Replacement Date", "Item", "Category" , "Sub_Category", "Item_Category", "Model", "Building", "Service Request", "Technician", "Asset Number", "Username", "Full Description"])
+            writer.writerow(["Replacement Date", "Item", "Category" , "Sub_Category", "Item_Category", "Model", "Building", "Service Request", "Technician", "Asset Number", "Serial", "Warranty Status","Username", "Full Description"])
 
 def randomSleep():
     time.sleep(random.uniform(0.1,0.6))
+
+def get_serial_from_asset_tag(asset_tag):
+    # Find the CSV file
+    current_dir = os.getcwd()
+    files = os.listdir(current_dir)
+    
+    csv_files = [f for f in files if 'assets-report' in f.lower() and f.lower().endswith('.csv')]
+
+    if not csv_files:
+        print("Error: No CSV file containing 'asset-report' found in the current directory.")
+        sys.exit(1)  # Exit the script
+
+    csv_file = csv_files[0]  # Use the first matching file
+
+    # Try to open the CSV file
+    try:
+        with open(csv_file, 'r', newline='') as csvfile:
+            reader = csv.DictReader(csvfile)
+            # Ensure required fields are present
+            if 'Asset Tag' not in reader.fieldnames or 'Serial' not in reader.fieldnames:
+                logging("Error: CSV file does not contain 'Asset Tag' and 'Serial' fields.")
+
+            # Search for the asset tag
+            for row in reader:
+                if row.get('Asset Tag') == asset_tag:
+                    return row.get('Serial')
+            # Asset tag not found
+            logging("Warning: Asset tag not found in the CSV.")
+            return None
+    except IOError:
+        logging("Error: Cannot read file csv file for serial number lookup. It may be open or inaccessible.")
+
+def get_warranty_status(serial_number):
+    url = f"https://supportapi.lenovo.com/v2.5/warranty?Serial={serial_number}"
+    headers = {
+        "ClientID": user_data["lenovoKey"]  # Replace with your actual Client ID
+    }
+
+    rerunLookup = True
+    errorCount = 0
+
+    while rerunLookup:
+
+
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get('InWarranty') is not None:
+                in_warranty = data['InWarranty']
+                if in_warranty:
+                    # Find the warranty with the latest 'End' date
+                    warranties = data.get('Warranty', [])
+                    if warranties:
+                        latest_end_date = max(
+                            datetime.strptime(w['End'], "%Y-%m-%dT%H:%M:%SZ")
+                            for w in warranties
+                        )
+                        today = datetime.now()
+                        delta = latest_end_date - today
+                        months_left = delta.days // 30  # Approximate months left
+                        rerunLookup = False
+                        return f"In warranty: {months_left} months left"
+                    else:
+                        rerunLookup = False
+                        return "In warranty: Warranty details not available"
+                else:
+                    rerunLookup = False
+                    return "Out of Warranty"
+            else:
+                errorCount += 1
+                if errorCount == 3:
+                    rerunLookup = False
+                    return "Error: Invalid response data"
+
+        except requests.exceptions.RequestException as err:
+            errorCount += 1
+
+            if errorCount == 3:
+                rerunLookup = False
+                logging("Lenovo API Error")
+
+                return "Error: Unable to retrieve warranty status"
 
 def fetchReplacementData(days: int):
     api_Key = user_data["apiKey"]
@@ -201,11 +286,13 @@ def fetchReplacementData(days: int):
 
     pageList = []
 
-    for x in range(301):
+    for x in range(1001):
         pageList.append(x)
 
     pageList.remove(0)
     # print(pageList)
+
+    blankPageCount = 0
 
     os.system('cls' if os.name == 'nt' else 'clear')
     for page in tqdm(pageList, desc="Processing Ticket Pages", unit="Page"):
@@ -248,8 +335,13 @@ def fetchReplacementData(days: int):
 
         if service_request_ids == []:
             logging("No valid SRs on current page...")
-            continue
-
+            blankPageCount += 1
+            if blankPageCount == 75:
+                print("Encountered 50 consecutive blank ticket pages, exiting script...")
+                break
+            else:
+                continue
+        blankPageCount = 0
         response.close()
         
         logging("Service Request IDs:", service_request_ids)
@@ -263,6 +355,8 @@ def fetchReplacementData(days: int):
         replacementDate = []
         item = []
         itemModel = []
+        serialNumber = []
+        warrantyStatus = []
 
         category = []
         subCategory = []
@@ -297,6 +391,12 @@ def fetchReplacementData(days: int):
                             # print(replacementDate)
                             item.append(custom_fields.get('item'))
                             itemModel.append(custom_fields.get('model'))
+                            machineSerial = get_serial_from_asset_tag(custom_fields.get('asset'))
+                            serialNumber.append(machineSerial)
+                            if machineSerial != None and len(machineSerial) ==8:
+                                warrantyStatus.append(get_warranty_status(machineSerial))
+                            else:
+                                warrantyStatus.append("No Data for Lookup")
 
                             ticketDataURL = base_url+"/"+str(ticketNumber)
                             ticketDataResponse = requests.get(ticketDataURL, auth=(api_Key, password))
@@ -344,22 +444,22 @@ def fetchReplacementData(days: int):
                 # writer.writerow(["Replacement Date", "Item", "Model", "Building", "Service Request", "Technician", "Asset Number", "Username", "Full Description"])
             
                 # Write the data rows
-                for replaceDate, itemType, ticketCat, subCat, itemCat, itemTypeModel, replacementBuilding, replacementSRNum, replacementTech, replacementAsset, replacementUsername, replacementDesc in tqdm(zip(replacementDate, item, category, subCategory, itemCategory, itemModel, building, srNumber, technician, assetNumbers, userName, problemDescriptions),desc="Writing Data to CSV", unit="Row", colour="yellow", leave=False, total=len(srNumber)):
+                for replaceDate, itemType, ticketCat, subCat, itemCat, itemTypeModel, replacementBuilding, replacementSRNum, replacementTech, replacementAsset, replacementSerial, replacementWarranty, replacementUsername, replacementDesc in tqdm(zip(replacementDate, item, category, subCategory, itemCategory, itemModel, building, srNumber, technician, assetNumbers, serialNumber, warrantyStatus, userName, problemDescriptions),desc="Writing Data to CSV", unit="Row", colour="yellow", leave=False, total=len(srNumber)):
                     formattedString = ' '.join(replacementDesc.splitlines())
                     # writer.writerow([asset, formattedString])
                     try:
                         if user_data["ai"] == "yes":
                             logging("Revising Description With AI...")
                             ai_description = rephraseText(formattedString)
-                            writer.writerow([replaceDate, itemType, ticketCat, subCat, itemCat, itemTypeModel, replacementBuilding, replacementSRNum, replacementTech, replacementAsset, replacementUsername, formattedString, ai_description])
+                            writer.writerow([replaceDate, itemType, ticketCat, subCat, itemCat, itemTypeModel, replacementBuilding, replacementSRNum, replacementTech, replacementAsset, replacementSerial, replacementWarranty, replacementUsername, formattedString, ai_description])
                         else:
-                            writer.writerow([replaceDate, itemType, ticketCat, subCat, itemCat, itemTypeModel, replacementBuilding, replacementSRNum, replacementTech, replacementAsset, replacementUsername, formattedString])
+                            writer.writerow([replaceDate, itemType, ticketCat, subCat, itemCat, itemTypeModel, replacementBuilding, replacementSRNum, replacementTech, replacementAsset, replacementSerial, replacementWarranty, replacementUsername, formattedString])
                     except UnicodeEncodeError as e:
                         # print("Encoding issue with " + serviceRequestNumber + " resolving issue...")
                         problematic_character_index = e.start
                         problematic_string = e.object
                         cleaned_string = problematic_string[:problematic_character_index] + ' ' + problematic_string[problematic_character_index + 1:]
-                        writer.writerow([replaceDate, itemType, ticketCat, subCat, itemCat, itemTypeModel, replacementBuilding, replacementSRNum, replacementTech, replacementAsset, replacementUsername, cleaned_string])
+                        writer.writerow([replaceDate, itemType, ticketCat, subCat, itemCat, itemTypeModel, replacementBuilding, replacementSRNum, replacementTech, replacementAsset, replacementSerial, replacementWarranty, replacementUsername, cleaned_string])
                 # for asset, description, build, tech, fullN in zip(assetNumbers, problemDescriptions, building, technician, fullName):
                 #     formattedString = ' '.join(description.splitlines())
                 #     writer.writerow([asset, formattedString, build, tech, fullN])
